@@ -74,6 +74,7 @@ class AIRNet(nn.Module):
                 af=AF,
             )
         ]  # TODO: clean this hacky stuff
+
         for i in range(1, num_conv_layers):
             downsample = (
                 (2,) * ndim if i < num_downsamplings else (1,) * ndim
@@ -116,8 +117,13 @@ class AIRNet(nn.Module):
     def forward(self, fixed, moving):
         f = self.convnet_features(fixed)
         m = self.convnet_features(moving)
+        
+        # The features of both images are flattened and concatenated.
         x = torch.cat((f.flatten(1), m.flatten(1)), dim=1)
+
+        # The concatenated features are then passed through the dense regression layers.
         x = self.regression_features(x)
+        
         translation = self.translation(x)
         rotation = self.rotation(x)
         scale = self.scaling(x)
