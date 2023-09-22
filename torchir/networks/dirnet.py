@@ -16,6 +16,7 @@ class ConvBlock(nn.Sequential):
         # Activation function
         af=nn.ELU,
         ndim=2,
+        # stride=1,
     ):
         # If ndim is 2, nn.Conv2d is chosen. If ndim is 3, nn.Conv3d is chosen
         Conv = (nn.Conv2d, nn.Conv3d)[ndim - 2]
@@ -29,7 +30,7 @@ class ConvBlock(nn.Sequential):
         layers = OrderedDict()
         layers["conv"] = Conv(
             in_channels, out_channels, kernel_size=kernel_size, padding=padding
-        )
+        ) # stride=stride
         if af:
             layers["af"] = af()
         if any(downsample):
@@ -70,7 +71,12 @@ class DIRNet(nn.Module):
 
         # 2 stand for fixed and moving images
         in_channels = 2
-        downsample = (0 < num_downsamplings).astype(np.int) + 1  # downsample kernel
+
+        downsample_factors = (0 < num_downsamplings).astype(int) + 1  # downsample kernel
+        downsample = tuple(downsample_factors[:ndim]) # Make sure it's a tuple of the correct length
+
+        # downsample = np.array([(i < nd) + 1 for i, nd in enumerate(num_downsamplings)])
+        # downsample = (0 < num_downsamplings).astype(int) + 1  # downsample kernel
         conv_layers = [
             ConvBlock(
                 in_channels,
@@ -79,10 +85,15 @@ class DIRNet(nn.Module):
                 downsample=downsample,
                 af=AF,
                 ndim=ndim,
+                # stride=2,
             )
         ]
         for i in range(1, num_conv_layers):
-            downsample = (i < num_downsamplings).astype(np.int) + 1  # downsample kernel
+            downsample_factors = (i < num_downsamplings).astype(int) + 1  # downsample kernel
+            downsample = tuple(downsample_factors[:ndim]) # Make sure it's a tuple of the correct length
+
+            # downsample = np.array([(i < nd) + 1 for i, nd in enumerate(num_downsamplings)])
+            # downsample = (i < num_downsamplings).astype(int) + 1  # downsample kernel
             conv_layers.append(
                 ConvBlock(
                     kernels,

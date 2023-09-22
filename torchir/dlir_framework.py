@@ -44,7 +44,6 @@ class DLIRFramework(nn.Module):
         # Starts as the moving image and is incrementally transformed closer to the fixed image at each stage.
         warped = moving
         
-        
         for stage in self.stages:
             # Compute transformation parameters
             parameters = stage["network"](fixed, warped)
