@@ -104,25 +104,16 @@ class LitDLIRFramework(pl.LightningModule):
 
 
 def main():
-    # model = LitDLIRFramework()
-    # torch.set_float32_matmul_precision('medium')
-    # model.add_stage(network=DIRNet(grid_spacing=(16, 16, 16), kernels=8, num_conv_layers=5, num_dense_layers=2, ndim=3),
-    #                 transformer=BsplineTransformer(ndim=3, upsampling_factors=(16, 16, 16)))
-    # trainer = pl.Trainer(default_root_dir=DEST_DIR,
-    #                      log_every_n_steps=50,
-    #                      val_check_interval=1.0,
-    #                      max_epochs=50,
-    #                      devices=1, 
-    #                      accelerator="gpu")
-    # trainer.fit(model, train_loader, val_loader)
-
-    checkpoint_path = "D:\\Temp\\s4692034\\TorchIR\\output\\lightning_logs\\version_44\\checkpoints\\epoch=9-step=250.ckpt"
-    checkpoint = torch.load(checkpoint_path)
     model = LitDLIRFramework()
+    torch.set_float32_matmul_precision('medium')
     model.add_stage(network=DIRNet(grid_spacing=(16, 16, 16), kernels=8, num_conv_layers=5, num_dense_layers=2, ndim=3),
                     transformer=BsplineTransformer(ndim=3, upsampling_factors=(16, 16, 16)))
-    model.load_state_dict(checkpoint['state_dict'])
-    trainer = pl.Trainer(resume_from_checkpoint=checkpoint_path)
+    trainer = pl.Trainer(default_root_dir=DEST_DIR,
+                         log_every_n_steps=50,
+                         val_check_interval=1.0,
+                         max_epochs=50,
+                         devices=1, 
+                         accelerator="gpu")
     trainer.fit(model, train_loader, val_loader)
 
 
