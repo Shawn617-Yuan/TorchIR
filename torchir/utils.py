@@ -139,44 +139,30 @@ class ScalingAF(nn.Module):
 
 
 class IRDataSet(Dataset):
-    """
-    Wrapper to convert a dataset into a dataset suitable for image registration experiments.
-    
-
-    def __init__(self, ds, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ds = ds
-
-    def __len__(self):
-        # for each image in ds, it wants to pair it with every other image in ds (including itself)
-        return len(self.ds) * len(self.ds)
-
-    def __getitem__(self, idx):
-        fixed_idx = idx // len(self.ds)
-        moving_idx = idx % len(self.ds)
-        return {"fixed": self.ds[fixed_idx], "moving": self.ds[moving_idx]}
-    """
-    def __init__(self, ds, num_pairs=None):
+    def __init__(self, ds, num_images=None):
         """
         ds: Original dataset
-        num_pairs: Number of pairs to be generated. If None, all possible pairs will be generated.
+        num_images: Number of images to be randomly selected from ds. If None, all images are used.
         """
         self.ds = ds
-        self.num_pairs = num_pairs if num_pairs else len(ds) * len(ds)
+        self.num_images = num_images if num_images else len(ds)
+        self.selected_images = np.random.choice(len(ds), self.num_images, replace=False)
+
+        # Calculate the total number of pairs that can be formed with the selected images
+        self.total_pairs = self.num_images * len(ds)
 
     def __len__(self):
-        return self.num_pairs
+        return self.total_pairs
 
     def pair_generator(self):
-        for i in range(self.num_pairs):
-            fixed_idx = np.random.randint(0, len(self.ds))
-            moving_idx = np.random.randint(0, len(self.ds))
-            yield {"fixed": self.ds[fixed_idx], "moving": self.ds[moving_idx]}
-
+        for fixed_idx in self.selected_images:
+            for moving_idx in range(len(self.ds)):
+                yield {"fixed": self.ds[fixed_idx], "moving": self.ds[moving_idx]}
+    
     def __getitem__(self, idx):
         # Use the generator to get the next pair.
         return next(self.pair_generator())
-    
+
 
 # Bspline functions
 def bspline_kernel_nd(t, order, dtype=float, **kwargs):
