@@ -121,7 +121,7 @@ class BsplineTransformer(Transformer):
         newshape = dvf.shape
 
         return dvf.view((shape[0], self.ndim) + newshape[2:])
-
+    
     def apply_transform(
         self,
         bspline_coefficients: Tensor,

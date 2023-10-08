@@ -1,12 +1,9 @@
 import numpy as np
-import nibabel as nib
+import SimpleITK as sitk
 import torch
 import pytorch_lightning as pl
-import matplotlib.pyplot as plt
 from pathlib import Path
-from tqdm import tqdm
 from torch.utils.data import Dataset, random_split
-from torchvision import transforms
 from torchir.utils import IRDataSet
 from torchir.metrics import NCC
 from torchir.dlir_framework import DLIRFramework
@@ -24,8 +21,11 @@ class CTDataSet(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        # Load NIFTI image
-        image = nib.load(self.image_paths[idx]).get_fdata()
+        # Load NIFTI image using SimpleITK
+        sitk_image = sitk.ReadImage(self.image_paths[idx])
+        
+        # Convert SimpleITK image to numpy array
+        image = sitk.GetArrayFromImage(sitk_image)
         
         # Convert the image data to float32 type, as PyTorch's default is float32
         image = np.asarray(image, dtype=np.float32)
@@ -76,15 +76,25 @@ class LitDLIRFramework(pl.LightningModule):
         self.dlir_framework = DLIRFramework(only_last_trainable=only_last_trainable)
         self.add_stage = self.dlir_framework.add_stage
         self.metric = NCC()
+        self.last_dvf = None
     
     def configure_optimizers(self):
-        lr = 0.002
+        lr = 0.001
         weight_decay = 0
         optimizer = torch.optim.Adam(self.dlir_framework.parameters(), lr=lr, weight_decay=weight_decay, amsgrad=True)
         return {'optimizer': optimizer}
 
     def forward(self, fixed, moving):
-        warped = self.dlir_framework(fixed, moving)
+        warped = moving
+        for stage in self.dlir_framework.stages:
+            parameters = stage["network"](fixed, warped)
+            
+            # 如果该阶段是最后一个阶段，保存DVF
+            if stage == self.dlir_framework.stages[-1]:
+                self.last_dvf = stage["transformer"].create_dvf(parameters, fixed.shape[2:])  # 你可能需要根据实际情况调整shape
+
+            warped, coord_grid = stage["transformer"](parameters, fixed, moving, coord_grid, return_coordinate_grid=True)
+        
         return warped
     
     def training_step(self, batch, batch_idx):
@@ -102,12 +112,17 @@ class LitDLIRFramework(pl.LightningModule):
     def on_epoch_end(self):
         torch.cuda.empty_cache()
 
+    def get_last_dvf(self):
+        return self.last_dvf
+
 
 def main():
     model = LitDLIRFramework()
     torch.set_float32_matmul_precision('medium')
-    model.add_stage(network=DIRNet(grid_spacing=(16, 16, 16), kernels=8, num_conv_layers=5, num_dense_layers=2, ndim=3),
-                    transformer=BsplineTransformer(ndim=3, upsampling_factors=(16, 16, 16)))
+    model.add_stage(network=DIRNet(grid_spacing=(8, 8, 8), kernels=16, num_conv_layers=5, num_dense_layers=2, ndim=3),
+                    transformer=BsplineTransformer(ndim=3, upsampling_factors=(8, 8, 8)))
+    model.add_stage(network=DIRNet(grid_spacing=(4, 4, 4), kernels=16, num_conv_layers=5, num_dense_layers=2, ndim=3),
+                    transformer=BsplineTransformer(ndim=3, upsampling_factors=(4, 4, 4)))
     trainer = pl.Trainer(default_root_dir=DEST_DIR,
                          log_every_n_steps=50,
                          val_check_interval=1.0,
